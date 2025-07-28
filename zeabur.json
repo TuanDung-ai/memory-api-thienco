@@ -1,0 +1,10 @@
+{
+  "name": "memory-api-thienco",
+  "type": "python",
+  "env": {
+    "PYTHON_VERSION": "3.10"
+  },
+  "buildCommand": "pip install -r requirements.txt",
+  "startCommand": "python memory_api.py",
+  "port": 5000
+}
