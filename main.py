@@ -5,7 +5,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Web App Google Script URL của bạn
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwBRGG4l11QKMwdizpnf9HvWgBop4g9_07TlNgmY9t8W6nWz6qB3lCTuPLOzDKJoAgf0w/exec"
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygeT-0ny4KHv_ZJJpK4j5BdizfGVbZ6yjzEBh7Duz9FoUza8CeUzETSOfa0uAd0YhF/exec"
 
 @app.route('/ghi_nho', methods=['POST'])
 def ghi_nho():
