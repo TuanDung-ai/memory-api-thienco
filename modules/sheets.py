@@ -7,28 +7,35 @@ import time
 # === LOG ENVIRONMENT ===
 print("=== ENVIRONMENT VARIABLES ===")
 for k, v in os.environ.items():
-    print(f"{k} = {v[:100]}...")
+    print(f"{k} = {v[:100]}...")  # In ngắn gọn
 print("=============================")
 
-# === GOOGLE SHEETS KẾT NỐI ===
+# === KẾT NỐI GOOGLE SHEETS ===
 credentials_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
 if not credentials_str:
     raise RuntimeError("❌ GOOGLE_CREDENTIALS_JSON chưa được thiết lập!")
 
 try:
+    # Thử parse trực tiếp
     credentials_data = json.loads(credentials_str)
 except json.JSONDecodeError:
     try:
-        fixed_str = credentials_str.encode().decode("unicode_escape")
+        # Nếu lỗi, unescape rồi parse lại
+        fixed_str = bytes(credentials_str, "utf-8").decode("unicode_escape")
         credentials_data = json.loads(fixed_str)
     except Exception as e:
-        raise RuntimeError(f"❌ Lỗi JSON trong GOOGLE_CREDENTIALS_JSON: {e}")
+        raise RuntimeError(f"❌ Lỗi JSON sau khi unescape: {e}")
 
-gc = gspread.service_account_from_dict(credentials_data)
-SHEET_NAME = "memorysheet"
-worksheet = gc.open(SHEET_NAME).sheet1
+print("✅ Đã nạp credential cho:", credentials_data.get("client_email", "Không rõ email"))
 
-# === KHỞI TẠO TIÊU ĐỀ ===
+try:
+    gc = gspread.service_account_from_dict(credentials_data)
+    SHEET_NAME = "memorysheet"
+    worksheet = gc.open(SHEET_NAME).sheet1
+except Exception as e:
+    raise RuntimeError(f"❌ Lỗi kết nối Google Sheets: {e}")
+
+# === KHỞI TẠO TIÊU ĐỀ NẾU CẦN ===
 def ensure_headers():
     try:
         values = worksheet.get_all_values()
@@ -76,7 +83,7 @@ def search_memory(user_id, keyword):
     return [(i, note) for i, note in enumerate(notes)
             if keyword_lower in note.get("content", "").lower() or keyword_lower in note.get("note_type", "").lower()]
 
-# === XÓA TOÀN BỘ ===
+# === XÓA TOÀN BỘ GHI NHỚ CỦA USER ===
 def clear_memory(user_id):
     try:
         all_rows = worksheet.get_all_values()
