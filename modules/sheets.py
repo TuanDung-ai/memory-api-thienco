@@ -1,6 +1,7 @@
 import os
 import json
 import gspread
+import requests
 from datetime import datetime
 import time
 
@@ -10,7 +11,7 @@ for k, v in os.environ.items():
     print(f"{k} = {v[:100]}...")
 print("=============================")
 
-# === GOOGLE SHEETS KẾT NỐI ===
+# === GOOGLE SHEETS KẾT NỐI AN TOÀN VỚI SESSION TIMEOUT ===
 credentials_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
 if not credentials_str:
     raise RuntimeError("❌ GOOGLE_CREDENTIALS_JSON chưa được thiết lập!")
@@ -24,7 +25,13 @@ except json.JSONDecodeError:
     except Exception as e:
         raise RuntimeError(f"❌ Lỗi JSON trong GOOGLE_CREDENTIALS_JSON: {e}")
 
-gc = gspread.service_account_from_dict(credentials_data)
+# Tạo session có timeout 10s
+session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100, max_retries=3)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
+
+gc = gspread.service_account_from_dict(credentials_data, session=session)
 SHEET_NAME = "memorysheet"
 worksheet = gc.open(SHEET_NAME).sheet1
 
@@ -39,7 +46,7 @@ def ensure_headers():
 
 ensure_headers()
 
-# === LẤY DỮ LIỆU AN TOÀN ===
+# === LẤY DỮ LIỆU AN TOÀN VỚI RETRY + TIMEOUT ===
 def safe_get_records(retries=3, delay=1.5):
     for attempt in range(retries):
         try:
@@ -56,7 +63,10 @@ def safe_get_records(retries=3, delay=1.5):
 # === GHI NHỚ ===
 def save_memory(user_id, content, note_type="khác"):
     time_str = datetime.now().isoformat()
-    worksheet.append_row([str(user_id), content, note_type, time_str])
+    try:
+        worksheet.append_row([str(user_id), content, note_type, time_str])
+    except Exception as e:
+        print(f"⚠️ Lỗi ghi nhớ:", e)
 
 # === LẤY GHI NHỚ ===
 def get_memory(user_id, note_type=None):
@@ -75,27 +85,34 @@ def search_memory(user_id, keyword):
 
 # === XÓA TOÀN BỘ ===
 def clear_memory(user_id):
-    all_rows = worksheet.get_all_values()
-    indices_to_delete = [i for i, row in enumerate(all_rows[1:], start=2) if row and row[0] == str(user_id)]
-    for i in reversed(indices_to_delete):
-        worksheet.delete_rows(i)
-    return bool(indices_to_delete)
+    try:
+        all_rows = worksheet.get_all_values()
+        indices_to_delete = [i for i, row in enumerate(all_rows[1:], start=2) if row and row[0] == str(user_id)]
+        for i in reversed(indices_to_delete):
+            worksheet.delete_rows(i)
+        return bool(indices_to_delete)
+    except Exception as e:
+        print(f"⚠️ Lỗi xóa ghi nhớ:", e)
+        return False
 
-# === LẤY GHI NHỚ MỚI NHẤT ===
+# === CẬP NHẬT GHI NHỚ GẦN NHẤT ===
 def update_latest_memory_type(user_id, note_type):
     records = safe_get_records()
     user_notes = [r for r in records if str(r.get("user_id", "")) == str(user_id)]
     if not user_notes:
         return False
     latest = user_notes[-1]
-    all_rows = worksheet.get_all_values()
-    for i, row in enumerate(all_rows[1:], start=2):
-        if row and len(row) >= 4 and row[0] == str(user_id) and row[1] == latest["content"]:
-            worksheet.update_cell(i, 3, note_type)
-            return True
+    try:
+        all_rows = worksheet.get_all_values()
+        for i, row in enumerate(all_rows[1:], start=2):
+            if row and len(row) >= 4 and row[0] == str(user_id) and row[1] == latest["content"]:
+                worksheet.update_cell(i, 3, note_type)
+                return True
+    except Exception as e:
+        print(f"⚠️ Lỗi cập nhật dạng ghi nhớ:", e)
     return False
 
-# === LẤY GHI NHỚ GẦN NHẤT DẠNG TEXT ===
+# === LẤY GHI NHỚ MỚI NHẤT DẠNG TEXT ===
 def get_recent_memories_for_prompt(user_id, limit=3):
     notes = get_memory(user_id)
     notes.sort(key=lambda x: x.get("time", ""), reverse=True)
