@@ -1,7 +1,6 @@
 import os
 import json
 import gspread
-import requests
 from datetime import datetime
 import time
 
@@ -11,7 +10,7 @@ for k, v in os.environ.items():
     print(f"{k} = {v[:100]}...")
 print("=============================")
 
-# === GOOGLE SHEETS KẾT NỐI AN TOÀN VỚI SESSION TIMEOUT ===
+# === GOOGLE SHEETS KẾT NỐI ===
 credentials_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
 if not credentials_str:
     raise RuntimeError("❌ GOOGLE_CREDENTIALS_JSON chưa được thiết lập!")
@@ -25,13 +24,7 @@ except json.JSONDecodeError:
     except Exception as e:
         raise RuntimeError(f"❌ Lỗi JSON trong GOOGLE_CREDENTIALS_JSON: {e}")
 
-# Tạo session có timeout 10s
-session = requests.Session()
-adapter = requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100, max_retries=3)
-session.mount("https://", adapter)
-session.mount("http://", adapter)
-
-gc = gspread.service_account_from_dict(credentials_data, session=session)
+gc = gspread.service_account_from_dict(credentials_data)
 SHEET_NAME = "memorysheet"
 worksheet = gc.open(SHEET_NAME).sheet1
 
@@ -46,7 +39,7 @@ def ensure_headers():
 
 ensure_headers()
 
-# === LẤY DỮ LIỆU AN TOÀN VỚI RETRY + TIMEOUT ===
+# === LẤY DỮ LIỆU AN TOÀN VỚI RETRY ===
 def safe_get_records(retries=3, delay=1.5):
     for attempt in range(retries):
         try:
@@ -112,7 +105,7 @@ def update_latest_memory_type(user_id, note_type):
         print(f"⚠️ Lỗi cập nhật dạng ghi nhớ:", e)
     return False
 
-# === LẤY GHI NHỚ MỚI NHẤT DẠNG TEXT ===
+# === LẤY GHI NHỚ GẦN NHẤT DẠNG TEXT ===
 def get_recent_memories_for_prompt(user_id, limit=3):
     notes = get_memory(user_id)
     notes.sort(key=lambda x: x.get("time", ""), reverse=True)
